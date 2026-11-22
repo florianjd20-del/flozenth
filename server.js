@@ -11,6 +11,10 @@ const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const PASSWORD = process.env.ADMIN_PASSWORD || '';
 const SESSION_MS = 14 * 24 * 3600 * 1000;
+// Direkter E-Mail-Versand der Anfragen (über den Dienst Resend, https://resend.com)
+const MAIL_KEY = process.env.RESEND_API_KEY || '';
+const MAIL_API = process.env.MAIL_API_URL || 'https://api.resend.com/emails';
+const MAIL_FROM = process.env.MAIL_FROM || 'FLOZENTH <onboarding@resend.dev>';
 
 if (PASSWORD.length < 8) {
   console.error('Bitte ADMIN_PASSWORD setzen (mindestens 8 Zeichen).');
@@ -131,6 +135,17 @@ function dropImage(url) {
   if (m) fs.unlink(path.join(UPLOAD_DIR, m[1]), () => {});
 }
 
+const orderHits = new Map();
+function orderLimit(ip) {
+  const now = Date.now();
+  if (orderHits.size > 5000) orderHits.clear();
+  const hits = (orderHits.get(ip) || []).filter(t => now - t < 10 * 60 * 1000);
+  if (hits.length >= 10) throw httpErr(429, 'Zu viele Anfragen. Bitte versuche es später noch einmal.');
+  hits.push(now);
+  orderHits.set(ip, hits);
+}
+const eurFmt = n => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+
 // ---- Hilfen ----
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -189,6 +204,45 @@ async function route(req, res) {
   }
   if (p === '/api/logout' && m === 'POST') {
     return send(res, 200, { ok: true }, { 'Set-Cookie': 'fz_session=; Max-Age=0; ' + cookieFlags(req) });
+  }
+
+  if (p === '/api/order' && m === 'POST') {
+    const to = process.env.MAIL_TO || readJSON(SHOP_FILE, {}).email;
+    if (!MAIL_KEY || !to) throw httpErr(503, 'Der direkte Versand ist noch nicht eingerichtet.');
+    orderLimit(clientIp(req));
+    const b = await readBody(req, 20000);
+    if (b.website) return send(res, 200, { ok: true }); // Spam-Falle: Menschen sehen das Feld nicht
+    const name = str(b.name, 100), email = str(b.email, 120), note = str(b.message, 1000);
+    if (!name) throw httpErr(400, 'Bitte gib deinen Namen an.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpErr(400, 'Bitte gib eine gültige E-Mail-Adresse an.');
+    const products = readJSON(PRODUCTS_FILE, []);
+    const items = Array.isArray(b.items) ? b.items.slice(0, 50) : [];
+    let total = 0; const lines = [];
+    for (const it of items) {
+      const pr = products.find(x => x.id === it.id);
+      const q = Number(it.qty);
+      if (!pr || !Number.isInteger(q) || q < 1 || q > 1000) continue;
+      if (pr.stock !== null && pr.stock !== undefined && q > pr.stock) throw httpErr(409, pr.name + ' ist in dieser Menge nicht verfügbar.');
+      total += pr.price * q;
+      lines.push(q + ' × ' + pr.name + ' – ' + eurFmt(pr.price) + ' = ' + eurFmt(pr.price * q));
+    }
+    if (!lines.length) throw httpErr(400, 'Der Warenkorb ist leer.');
+    const text = 'Neue Anfrage über den Shop\n\nName: ' + name + '\nE-Mail: ' + email + '\n\nArtikel:\n' + lines.join('\n') +
+      '\n\nSumme: ' + eurFmt(total) + (note ? '\n\nNachricht:\n' + note : '') + '\n\nAntworte direkt auf diese E-Mail, sie geht an den Kunden.';
+    let r;
+    try {
+      r = await fetch(MAIL_API, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + MAIL_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: MAIL_FROM, to: [to], reply_to: email, subject: ('Neue Anfrage von ' + name).replace(/[\r\n]+/g, ' '), text }),
+        signal: AbortSignal.timeout(10000)
+      });
+    } catch (e) { console.error('Mail-Versand: keine Verbindung', e.message); throw httpErr(502, 'Die Anfrage konnte nicht gesendet werden. Bitte versuche es später noch einmal.'); }
+    if (!r.ok) {
+      console.error('Mail-Versand fehlgeschlagen', r.status, (await r.text()).slice(0, 300));
+      throw httpErr(502, 'Die Anfrage konnte nicht gesendet werden. Bitte versuche es später noch einmal.');
+    }
+    return send(res, 200, { ok: true });
   }
 
   if (p === '/api/shop' && m === 'PUT') {

@@ -2,7 +2,7 @@
   'use strict';
   var state = {shop:{name:'FLOZENTH',tagline:'',email:'',legal:''},products:[]};
   var cart = {}, filter = 'Alle', isAdmin = false, overlay = null, editing = null;
-  var orderText = '', loginErr = '', loaded = false, loadErr = false;
+  var orderText = '', orderErr = '', orderSent = false, sending = false, loginErr = '', loaded = false, loadErr = false;
   var adminMsg = {text:'',cls:''};
   var app = document.getElementById('app');
 
@@ -80,7 +80,7 @@
       '<button class="btn small" data-act="open-cart">Warenkorb <span class="count">'+cartCount()+'</span></button></div></div>'+
       '<div class="wrap">'+
       '<section class="hero"><div class="hcopy"><div class="eyebrow">FDM-3D-Druck · auf Bestellung</div><h1><span class="g">'+esc(state.shop.name)+'</span></h1><p>'+esc(state.shop.tagline)+'</p>'+
-      '<div class="cta"><button class="btn primary" data-act="scroll">Artikel ansehen</button><button class="btn" data-act="open-cart">Anfrage vorbereiten</button></div>'+
+      '<div class="cta"><button class="btn primary" data-act="scroll">Artikel ansehen</button><button class="btn" data-act="open-cart">Anfrage stellen</button></div>'+
       '<div class="stats"><div><b>'+state.products.length+'</b><span>Artikel</span></div><div><b>'+cats().length+'</b><span>Kategorien</span></div><div><b>'+m.length+'</b><span>Materialien</span></div></div></div>'+
       '<div class="bed"><canvas id="hero-cv" width="480" height="420" role="img" aria-label="Die Artikel des Shops werden Schicht für Schicht gedruckt"></canvas>'+
       '<div class="bedinfo"><span id="hero-layer">Schicht 270 / 300</span><div class="prog"><i id="hero-bar"></i></div><span id="hero-fil" style="color:var(--fg);max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div></div></section>'+
@@ -88,7 +88,7 @@
       '<section class="sec" id="artikel"><h2>Artikel</h2><div class="filters" role="group" aria-label="Kategorien">'+chips+'</div>'+grid+'</section>'+
       '<section class="sec"><h2>So läuft deine Bestellung</h2><div class="steps">'+
       '<div class="step"><div class="n">01</div><h3>Artikel wählen</h3><p>Lege alles in den Warenkorb, was dir gefällt. Wunschfarbe schreibst du später dazu.</p></div>'+
-      '<div class="step"><div class="n">02</div><h3>Anfrage senden</h3><p>Du bekommst einen fertigen Text und schickst ihn per E-Mail an den Shop.</p></div>'+
+      '<div class="step"><div class="n">02</div><h3>Anfrage senden</h3><p>Du schickst deine Wunschliste direkt über die Seite an uns ab.</p></div>'+
       '<div class="step"><div class="n">03</div><h3>Wir drucken</h3><p>Nach deiner Bestätigung wird dein Artikel gedruckt und zu dir geschickt.</p></div></div></section>'+
       '<footer><span class="legal">'+esc(state.shop.legal)+'</span><button class="lnk" data-act="'+(isAdmin?'open-admin':'open-login')+'">'+(isAdmin?'Verwaltung':'Anmelden')+'</button></footer></div>'+
       '<div id="ov"></div>';
@@ -115,6 +115,8 @@
   }
 
   function cartHtml(){
+    if(orderSent) return '<div class="overlay" data-act="close-bg"><div class="panel" role="dialog" aria-label="Anfrage gesendet"><div class="phead"><h2>Danke!</h2><button class="btn small" data-act="close">Schließen</button></div>'+
+      '<div class="box"><strong>Deine Anfrage ist bei uns angekommen.</strong><p class="note" style="margin:0">Wir melden uns so bald wie möglich per E-Mail bei dir.</p></div></div></div>';
     var ids=Object.keys(cart).filter(function(k){return byId(k)});
     var lines=ids.map(function(k){var p=byId(k);return '<div class="line"><div><strong>'+esc(p.name)+'</strong><div class="note">'+eur(p.price)+' pro Stück</div></div>'+
       '<div class="qty"><button data-act="dec" data-id="'+esc(k)+'" aria-label="Weniger">−</button><span>'+cart[k]+'</span><button data-act="inc" data-id="'+esc(k)+'" aria-label="Mehr">+</button></div></div>'}).join('');
@@ -125,7 +127,9 @@
       '<div class="form"><label>Dein Name<input type="text" id="c-name" autocomplete="name"></label>'+
       '<label>Deine E-Mail<input type="email" id="c-mail" autocomplete="email"></label>'+
       '<label>Wunschfarbe oder Nachricht<textarea id="c-msg"></textarea></label>'+
-      '<button class="btn primary" data-act="prepare">Anfrage vorbereiten</button></div>';
+      '<div style="position:absolute;left:-9999px" aria-hidden="true"><label>Website<input type="text" id="c-web" tabindex="-1" autocomplete="off"></label></div>'+
+      (orderErr?'<span class="status err" role="alert">'+esc(orderErr)+'</span>':'')+
+      '<button class="btn primary" data-act="send"'+(sending?' disabled':'')+'>'+(sending?'Wird gesendet …':'Anfrage absenden')+'</button></div>';
       if(orderText){
         body+='<div class="box"><strong>Deine Anfrage</strong><textarea class="out" id="c-out" readonly>'+esc(orderText)+'</textarea>'+
         '<div class="note">Diese Seite sendet nichts selbst. Kopiere den Text und schicke ihn an '+(state.shop.email?'<strong>'+esc(state.shop.email)+'</strong>':'den Shop-Betreiber')+'.</div>'+
@@ -216,8 +220,8 @@
       case 'add':
         p=byId(id); if(!p||soldOut(p)) break;
         if(p.stock!==null&&(cart[id]||0)+1>p.stock) break;
-        cart[id]=(cart[id]||0)+1; orderText=''; render(); break;
-      case 'open-cart': overlay='cart'; renderOverlay(); break;
+        cart[id]=(cart[id]||0)+1; orderText=''; orderErr=''; orderSent=false; render(); break;
+      case 'open-cart': overlay='cart'; orderErr=''; renderOverlay(); break;
       case 'open-admin': overlay='admin'; adminMsg={text:'',cls:''}; renderOverlay(); break;
       case 'open-login': overlay='login'; loginErr=''; renderOverlay(); var pw=document.getElementById('l-pw'); if(pw) pw.focus(); break;
       case 'logout': api('POST','/api/logout',{}).then(function(){isAdmin=false;overlay=null;editing=null;render();}).catch(fail); break;
@@ -227,6 +231,25 @@
         if(p.stock!==null&&cart[id]+1>p.stock) break;
         cart[id]++; orderText=''; render(); break;
       case 'dec': cart[id]--; if(cart[id]<=0) delete cart[id]; orderText=''; render(); break;
+      case 'send':
+        if(sending) break;
+        var n0=val('c-name').trim(), m0=val('c-mail').trim(), g0=val('c-msg').trim(), w0=val('c-web');
+        var keep=function(){var a1=document.getElementById('c-name'),b1=document.getElementById('c-mail'),c1=document.getElementById('c-msg');if(a1)a1.value=n0;if(b1)b1.value=m0;if(c1)c1.value=g0;};
+        if(!n0||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m0)){orderErr='Bitte gib deinen Namen und eine gültige E-Mail-Adresse an.';renderOverlay();keep();break;}
+        orderErr=''; sending=true; renderOverlay(); keep();
+        api('POST','/api/order',{name:n0,email:m0,message:g0,website:w0,items:Object.keys(cart).filter(byId).map(function(k){return {id:k,qty:cart[k]};})}).then(function(){
+          sending=false; orderSent=true; cart={}; orderText=''; render();
+        }).catch(function(e){
+          sending=false;
+          if(e.status===503){ // Versand nicht eingerichtet: Text zum Kopieren anbieten
+            var ids0=Object.keys(cart).filter(byId);
+            var l0=ids0.map(function(k){var q=byId(k);return cart[k]+' × '+q.name+' – '+eur(q.price)+' = '+eur(q.price*cart[k]);});
+            orderText='Anfrage an '+state.shop.name+'\n\nName: '+n0+'\nE-Mail: '+m0+'\n\nArtikel:\n'+l0.join('\n')+'\n\nSumme: '+eur(cartTotal())+(g0?'\n\nNachricht: '+g0:'');
+            orderErr='Der direkte Versand ist gerade nicht möglich. Du kannst die Anfrage unten kopieren und selbst per E-Mail schicken.';
+          } else orderErr=e.message||'Die Anfrage konnte nicht gesendet werden.';
+          renderOverlay(); keep();
+        });
+        break;
       case 'prepare':
         var n=val('c-name').trim(), m=val('c-mail').trim(), g=val('c-msg').trim();
         var ids=Object.keys(cart).filter(byId);

@@ -12,6 +12,16 @@ Dann http://localhost:3000 öffnen. Anmelden: unten auf der Seite "Anmelden" ode
 - DATA_DIR        Ordner für Artikel und Fotos (Standard: ./data). Muss auf dem Server dauerhaft gespeichert werden.
 - PORT            Standard 3000 (Hosting-Anbieter setzen ihn meist selbst).
 
+## Anfragen direkt per E-Mail senden (optional)
+Ohne diese Einstellungen zeigt der Shop den Kunden einen Text zum Kopieren.
+Mit ihnen geht die Anfrage direkt als E-Mail an dich. Genutzt wird der Dienst Resend (resend.com).
+- RESEND_API_KEY  Dein API-Schlüssel von resend.com (Pflicht für den Versand)
+- MAIL_TO         E-Mail-Adresse, an die die Anfragen gehen. Ohne diese Variable gilt die E-Mail aus der Verwaltung (Shop-Angaben).
+- MAIL_FROM       Absender, z. B. FLOZENTH <anfragen@deine-domain.de>. Ohne Angabe wird onboarding@resend.dev genutzt.
+Hinweis: Mit dem Standard-Absender onboarding@resend.dev kann Resend nach meinem Kenntnisstand nur an die E-Mail-Adresse
+deines Resend-Kontos senden. Prüfe das und die aktuellen Bedingungen bei Resend. Für andere Empfänger braucht man eine bestätigte eigene Domain.
+Die Antwort-Adresse der Mail ist die des Kunden, du kannst also direkt antworten.
+
 ## Online stellen
 Du brauchst einen Anbieter, der Node.js-Programme betreibt UND einen dauerhaften Speicher (Volume/Disk) anbietet.
 Ohne dauerhaften Speicher gehen Artikel und Fotos bei jedem Neustart verloren.
