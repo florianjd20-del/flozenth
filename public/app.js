@@ -89,7 +89,7 @@
       '<section class="sec"><h2>So läuft deine Bestellung</h2><div class="steps">'+
       '<div class="step"><div class="n">01</div><h3>Artikel wählen</h3><p>Lege alles in den Warenkorb, was dir gefällt. Wunschfarbe schreibst du später dazu.</p></div>'+
       '<div class="step"><div class="n">02</div><h3>Anfrage senden</h3><p>Du bekommst einen fertigen Text und schickst ihn per E-Mail an den Shop.</p></div>'+
-      '<div class="step"><div class="n">03</div><h3>Wir drucken</h3><p>Nach deiner Bestätigung wird gedruckt. Bezahlt wird per Rechnung.</p></div></div></section>'+
+      '<div class="step"><div class="n">03</div><h3>Wir drucken</h3><p>Nach deiner Bestätigung wird dein Artikel gedruckt und zu dir geschickt.</p></div></div></section>'+
       '<footer><span class="legal">'+esc(state.shop.legal)+'</span><button class="lnk" data-act="'+(isAdmin?'open-admin':'open-login')+'">'+(isAdmin?'Verwaltung':'Anmelden')+'</button></footer></div>'+
       '<div id="ov"></div>';
     renderOverlay();
@@ -128,7 +128,7 @@
       '<button class="btn primary" data-act="prepare">Anfrage vorbereiten</button></div>';
       if(orderText){
         body+='<div class="box"><strong>Deine Anfrage</strong><textarea class="out" id="c-out" readonly>'+esc(orderText)+'</textarea>'+
-        '<div class="note">Diese Seite sendet nichts selbst. Kopiere den Text und schicke ihn an '+(state.shop.email?'<strong>'+esc(state.shop.email)+'</strong>':'den Shop-Betreiber')+'. Der Preis wird danach per Rechnung bestätigt.</div>'+
+        '<div class="note">Diese Seite sendet nichts selbst. Kopiere den Text und schicke ihn an '+(state.shop.email?'<strong>'+esc(state.shop.email)+'</strong>':'den Shop-Betreiber')+'.</div>'+
         '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="copy">Text kopieren</button>'+
         (state.shop.email?'<a class="btn" href="mailto:'+esc(state.shop.email)+'?subject='+encodeURIComponent('Anfrage '+state.shop.name)+'&body='+encodeURIComponent(orderText)+'">E-Mail-Programm öffnen</a>':'')+
         '</div><span class="status" id="copystat" role="status"></span></div>';
